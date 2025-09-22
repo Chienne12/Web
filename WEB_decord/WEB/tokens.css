@@ -1,0 +1,16 @@
+:root{
+  --bg:#0B1220; --bg2:#0F172A; --surface:#111A2A; --surface-soft:#0F1828;
+  --text:#E5E7EB; --sub:#9CA3AF; --border:#1F2A3A; /* viền component */
+  --line:rgba(75,94,117,.45); /* đường kẻ xanh xám nhẹ, mờ hơn */
+  --primary:#2563EB; --primary-2:#3B82F6; --success:#10B981; --warning:#F59E0B; --danger:#EF4444; --cyan:#22D3EE;
+  --radius-lg:14px; --radius-md:12px; --radius-sm:10px;
+  --gap-sm:12px; --gap-md:16px; --gap-lg:24px;
+  --title:24px; --section:18px; --body:15px; --mono:14px;
+  --shadow-1:0 2px 10px rgba(0,0,0,.35);
+  --shadow-2:0 12px 32px rgba(0,0,0,.45);
+}
+
+@media (prefers-color-scheme: light){
+  :root{ --bg:#F7F9FC; --bg2:#F4F6FB; --surface:#FFFFFF; --surface-soft:#FBFCFF; --text:#0F172A; --sub:#475569; --border:#E5E7EB; }
+}
+

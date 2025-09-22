@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkCast Pro Web</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div class="app-frame">
+  <header class="app-header">
+    <div class="brand">
+      <img class="logo" src="anh/Logo.png" alt="Logo" />
+      <span class="wordmark">LinkCastPro</span>
+    </div>
+    <div class="actions">
+      <span class="badge connecting" id="connectionStatus">Kết nối</span>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <nav class="menu" data-part="1" data-name="Menu trái (Trái/Trên)">
+        
+        <a class="item active" data-icon="grid" data-route="overview">Tổng quan</a>
+        <a class="item" data-icon="settings" data-route="settings">Cài đặt</a>
+      </nav>
+      <div class="qr-card" data-part="2" data-name="QR & Mã ghép (Trái/Dưới)">
+        <div class="qr-box">
+          <div id="qrContainer" class="qr-img" aria-label="Mã QR ghép nối"></div>
+        </div>
+        <div class="qr-caption">Quét để ghép nối</div>
+        <button id="btnShowCode" class="btn btn-secondary w-full">Hiển thị mã 6 số</button>
+        <div id="pairCodeWrap" class="paircode hidden" aria-live="polite">
+          <span class="label">Code</span>
+          <span id="pairCode" class="code">••••••</span>
+          <button id="btnCopyCode" class="copy" title="Sao chép">Copy</button>
+          <div id="roomExpires" class="room-expires">Mã hết hạn sau: 300 giây</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="player-card" data-part="3" data-name="Player (Phải/Trên)">
+        <div class="player">
+          <div class="metrics-float" id="telemetryChips">
+            <span class="chip success" id="latencyChip">0 ms</span>
+            <span class="chip primary" id="bitrateChip">0 Mbps</span>
+            <span class="chip warning" id="fpsChip">0 FPS</span>
+          </div>
+          <button class="play-btn" aria-label="Nhấn để phát">
+            <span class="play-ring"></span>
+            <span class="play-icon">▶</span>
+          </button>
+          <button class="btn-fs" id="btnFullscreen" aria-label="Fullscreen"></button>
+          <div class="hint">Nhấn để phát</div>
+        </div>
+      </section>
+
+      <!-- Smart Cast đã bỏ: tự động đo và chọn preset khi phát -->
+
+      
+
+      <section class="chips-row" data-part="4" data-name="Điều khiển & mẹo (Phải/Dưới)">
+        <div class="chip-group">
+          <span class="chip">Chất lượng</span>
+          <button class="chip">720p</button>
+          <button class="chip is-active">1080p</button>
+          <button class="chip">Auto (ABR)</button>
+        </div>
+        <div class="chip-group">
+          <button class="chip" data-icon="keyframe">Keyframe</button>
+          <button class="chip" data-icon="preset" id="btnPreset">Preset</button>
+          <div class="preset-menu hidden" id="presetMenu" role="menu" aria-label="Chọn preset">
+            <button type="button" class="preset-item" data-preset="low-latency">
+              <span class="title">Độ trễ thấp</span>
+              <span class="desc">Phản hồi nhanh, ưu tiên điều khiển</span>
+            </button>
+            <button type="button" class="preset-item" data-preset="high-detail">
+              <span class="title">Chi tiết cao</span>
+              <span class="desc">Hình nét hơn, có thể trễ hơn</span>
+            </button>
+            <button type="button" class="preset-item" data-preset="bandwidth-save">
+              <span class="title">Tiết kiệm băng thông</span>
+              <span class="desc">Ổn định mạng yếu</span>
+            </button>
+          </div>
+          <button class="chip" data-icon="record">Ghi MP4</button>
+        </div>
+      </section>
+
+      <div class="inline-tip" data-part="4">Mẹo tối ưu mạng: ưu tiên Wi‑Fi 5 GHz, đứng gần router, tránh tường dày.</div>
+
+      <!-- Settings panel đơn giản -->
+      <section class="settings-panel hidden" aria-label="Cài đặt">
+        <div class="settings-header">
+          <button class="back-link" id="btnBackOverview" aria-label="Quay lại">← Quay lại</button>
+          <h2 class="settings-title">Cài đặt</h2>
+        </div>
+
+        <div class="settings-grid">
+          <div class="col">
+            <div class="setting-group">
+              <h3>Âm thanh</h3>
+              <label class="setting-item">
+                <span>Kích hoạt đầu vào âm thanh</span>
+                <input id="audioInput" type="checkbox" class="switch">
+              </label>
+            </div>
+
+            <div class="setting-group">
+              <h3>Thông báo</h3>
+              <label class="setting-item">
+                <span>Hiển thị thông báo</span>
+                <input id="showNotify" type="checkbox" class="switch" checked>
+              </label>
+              <div class="setting-actions left">
+                <button id="btnTestNotify" class="btn btn-primary">Kiểm tra thông báo</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col">
+            <div class="setting-group">
+              <h3>Âm thanh</h3>
+              <label class="setting-item">
+                <span>Âm lượng micro</span>
+                <div class="range-wrap"><input id="micVol" type="range" min="0" max="100" value="75"><span class="range-val" id="micVolVal">75</span></div>
+              </label>
+              <label class="setting-item">
+                <span>Âm lượng tổng</span>
+                <div class="range-wrap"><input id="masterVol" type="range" min="0" max="100" value="50"><span class="range-val" id="masterVolVal">50</span></div>
+              </label>
+            </div>
+
+            <div class="setting-group">
+              <h3>Video</h3>
+              <label class="setting-item">
+                <span>Độ sáng</span>
+                <div class="range-wrap"><input id="brightness" type="range" min="0" max="100" value="80"><span class="range-val" id="brightnessVal">80</span></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="app-footer">
+  </footer>
+  </div>
+
+  <!-- Dùng bản chính thức từ CDN (tạm thời) để đảm bảo ổn định; sẽ thay bằng bản nội bộ đầy đủ sau -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
