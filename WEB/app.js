@@ -21,7 +21,9 @@ function connectSignaling(sessionId){
   currentSessionId = sessionId;
   if (ws && ws.readyState === WebSocket.OPEN) return;
   try {
-    ws = new WebSocket(`ws://${SERVER_HOST}`);
+    const isHttps = location.protocol === 'https:';
+    const scheme = isHttps ? 'wss' : 'ws';
+    ws = new WebSocket(`${scheme}://${SERVER_HOST}`);
     ws.onopen = () => {
       wsReady = true;
       console.log('[WS] opened');
