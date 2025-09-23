@@ -4,6 +4,7 @@
 let connectionState = 'disconnected'; // disconnected, connecting, connected
 let peerConnection = null;
 let statsInterval = null;
+let pendingRemoteIce = [];
 
 // Quản lý chất lượng video
 let currentQuality = '1080p'; // 720p, 1080p, auto
@@ -16,7 +17,7 @@ let wsReady = false;
 let currentSessionId = null;
 
 // Kết nối WebSocket và join phòng
-const SERVER_HOST = '150.95.114.174:8082'; // Server thật
+const SERVER_HOST = 'up-apzf.onrender.com'; // Render WSS host
 function connectSignaling(sessionId){
   currentSessionId = sessionId;
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -157,7 +158,16 @@ async function handleSignal(msg){
     sendSignalingMessage({ type: 'answer', sdp: answer.sdp });
     console.log('📤 Answer sent to Android');
     hidePlayButton();
-  } else if (msg.type === 'ice' && msg.candidate){
+
+    // Sau khi có remoteDescription, nạp các ICE đã nhận sớm
+    if (pendingRemoteIce.length) {
+      console.log(`[ICE] Flushing ${pendingRemoteIce.length} queued candidates`);
+      for (const c of pendingRemoteIce) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) { console.error('addIceCandidate (flush) error', e); }
+      }
+      pendingRemoteIce = [];
+    }
+  } else if ((msg.type === 'ice' || msg.type === 'ice-candidate') && msg.candidate){
     try {
       const pc = await ensurePeer();
       // Chỉ thêm ICE candidate nếu đã có remote description
@@ -165,7 +175,9 @@ async function handleSignal(msg){
         await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
         console.log('[ICE] Added candidate successfully');
       } else {
-        console.log('[ICE] Skipping candidate - no remote description yet');
+        // Lưu hàng đợi, sẽ nạp sau khi setRemoteDescription
+        pendingRemoteIce.push(msg.candidate);
+        console.log('[ICE] Queued candidate - no remote description yet');
       }
     } catch (e){ console.error('addIceCandidate error', e); }
   }
@@ -179,6 +191,12 @@ function sendSignalingMessage(message) {
   }
   if (!message.sessionId) message.sessionId = currentSessionId || 'ABC123';
   ws.send(JSON.stringify(message));
+}
+
+// Gửi command chuẩn tới Android (phù hợp với MainActivity.onCommand)
+function sendCommand(command, data){
+  // Dùng 'cmd' để tương thích trực tiếp với server và Android client
+  sendSignalingMessage({ type: 'cmd', cmd: command, payload: data });
 }
 
 // Cập nhật UI trạng thái kết nối
@@ -351,6 +369,7 @@ function createVideoElement() {
   const video = document.createElement('video');
   video.autoplay = true;
   video.muted = true;
+  video.playsInline = true; // iOS/Safari tránh full-screen auto
   video.style.width = '100%';
   video.style.height = '100%';
   video.style.objectFit = 'cover';
@@ -365,10 +384,7 @@ function handleQualityChange(quality) {
   
   if (peerConnection && connectionState === 'connected') {
     // Gửi yêu cầu thay đổi chất lượng đến Android app
-    sendSignalingMessage({
-      type: 'quality-change',
-      quality: quality
-    });
+    sendCommand('quality', quality);
     
     // Cập nhật video constraints nếu có video track
     const videoTrack = peerConnection.getSenders().find(sender => 
@@ -418,21 +434,13 @@ function getVideoConstraints(quality) {
 // Xử lý yêu cầu Keyframe
 function handleKeyframeRequest() {
   console.log('Gửi yêu cầu Keyframe');
-  
-  if (peerConnection && connectionState === 'connected') {
-    // Gửi yêu cầu keyframe đến Android app
-    sendSignalingMessage({
-      type: 'keyframe-request'
-    });
-    
-    // Cũng có thể gửi qua WebRTC data channel nếu có
-    const dataChannel = peerConnection.createDataChannel('keyframe-request');
-    dataChannel.send(JSON.stringify({ type: 'keyframe-request' }));
-    
-    console.log('✅ Đã gửi yêu cầu Keyframe');
-  } else {
-    console.log('❌ Chưa kết nối - không thể gửi keyframe request');
+  // Gửi qua signaling nếu WS đang mở, không phụ thuộc trạng thái peerConnection
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    sendCommand('keyframe');
+    console.log('✅ Đã gửi yêu cầu Keyframe qua WS');
+    return;
   }
+  console.log('❌ WS chưa sẵn sàng - không thể gửi keyframe request');
 }
 
 // Xử lý bật/tắt ghi MP4
@@ -554,12 +562,8 @@ function initSettings() {
     audioInputToggle.addEventListener('change', (e) => {
       const enabled = e.target.checked;
       console.log('Audio input:', enabled ? 'BẬT' : 'TẮT');
-      
-      // Gửi đến Android app
-      sendSignalingMessage({
-        type: 'audio-input-toggle',
-        enabled: enabled
-      });
+      // Gửi command tới Android
+      sendCommand('audio-input-toggle', enabled);
       
       // Lưu vào localStorage
       localStorage.setItem('audioInputEnabled', enabled);
@@ -592,12 +596,8 @@ function initSettings() {
     micVolSlider.addEventListener('input', (e) => {
       const volume = parseInt(e.target.value);
       console.log('Mic volume:', volume);
-      
-      // Gửi đến Android app
-      sendSignalingMessage({
-        type: 'mic-volume-change',
-        volume: volume
-      });
+      // Gửi command tới Android
+      sendCommand('mic-volume-change', volume);
       
       // Lưu vào localStorage
       localStorage.setItem('micVolume', volume);
@@ -608,12 +608,8 @@ function initSettings() {
     masterVolSlider.addEventListener('input', (e) => {
       const volume = parseInt(e.target.value);
       console.log('Master volume:', volume);
-      
-      // Gửi đến Android app
-      sendSignalingMessage({
-        type: 'master-volume-change',
-        volume: volume
-      });
+      // Gửi command tới Android
+      sendCommand('master-volume-change', volume);
       
       // Lưu vào localStorage
       localStorage.setItem('masterVolume', volume);
@@ -624,12 +620,8 @@ function initSettings() {
     brightnessSlider.addEventListener('input', (e) => {
       const brightness = parseInt(e.target.value);
       console.log('Brightness:', brightness);
-      
-      // Gửi đến Android app
-      sendSignalingMessage({
-        type: 'brightness-change',
-        brightness: brightness
-      });
+      // Gửi command tới Android
+      sendCommand('brightness-change', brightness);
       
       // Lưu vào localStorage
       localStorage.setItem('brightness', brightness);
