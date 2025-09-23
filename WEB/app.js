@@ -16,10 +16,9 @@ let ws = null;
 let wsReady = false;
 let currentSessionId = null;
 
-// Kết nối WebSocket và join phòng
+// Kết nối WebSocket (web = tạo phòng mới)
 const SERVER_HOST = 'up-apzf.onrender.com'; // Render WSS host
-function connectSignaling(sessionId){
-  currentSessionId = sessionId;
+function connectSignaling(){
   if (ws && ws.readyState === WebSocket.OPEN) return;
   try {
     const isHttps = location.protocol === 'https:';
@@ -28,7 +27,17 @@ function connectSignaling(sessionId){
     ws.onopen = () => {
       wsReady = true;
       console.log('[WS] opened');
-      ws.send(JSON.stringify({ type:'join', sessionId, role:'web' }));
+      // Nếu QR/mã phòng đã tạo trước khi WS mở, gửi create-room ngay bây giờ
+      if (window.__ROOM_DATA__) {
+        const rd = window.__ROOM_DATA__;
+        const code = (rd.roomCode || '').toString().toUpperCase();
+        ws.send(JSON.stringify({
+          type: 'create-room',
+          roomCode: code,
+          createdAt: rd.createdAt,
+          expiresAt: rd.expiresAt
+        }));
+      }
     };
     ws.onclose = (e) => { wsReady = false; console.log('[WS] closed', e.code, e.reason); };
     ws.onerror = (e) => { console.error('[WS] error', e); };
@@ -819,9 +828,11 @@ function updateQRCode(data){
 
 function initPairing(){
   const roomData = generateSecureRoomCode();
+  // Chuẩn hóa mã phòng sang UPPERCASE để người dùng nhập nhất quán
+  roomData.roomCode = (roomData.roomCode || '').toString().toUpperCase();
   window.__ROOM_DATA__ = roomData; // lưu tạm để dùng chỗ khác nếu cần
   
-  // Gửi mã phòng lên server
+  // Gửi mã phòng lên server (nếu WS đã mở). Nếu chưa mở, onopen sẽ gửi lại.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ 
       type: 'create-room', 
@@ -925,8 +936,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
     console.error('❌ Không tìm thấy nút fullscreen!');
   }
   
-  // Kết nối signaling (tạm dùng sessionId cố định để test)
-  connectSignaling('ABC123');
+  // Kết nối signaling (web sẽ gửi create-room trên onopen nếu đã có __ROOM_DATA__)
+  connectSignaling();
 });
 
 function toggleRoute(route){
