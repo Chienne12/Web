@@ -17,7 +17,7 @@ let wsReady = false;
 let currentSessionId = null;
 
 // Kết nối WebSocket (web = tạo phòng mới)
-const SERVER_HOST = 'up-apzf.onrender.com'; // Render WSS host
+const SERVER_HOST = 'queen-ungluttonous-nonfundamentally.ngrok-free.dev'; // Render WSS host
 function connectSignaling(){
   if (ws && ws.readyState === WebSocket.OPEN) return;
   try {
