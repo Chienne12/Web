@@ -28,9 +28,7 @@
         <a class="item" data-icon="settings" data-route="settings">Cài đặt</a>
       </nav>
       <div class="qr-card" data-part="2" data-name="QR & Mã ghép (Trái/Dưới)">
-        <div class="qr-box">
-          <div id="qrContainer" class="qr-img" aria-label="Mã QR ghép nối"></div>
-        </div>
+        <div id="qrContainer" class="qr-img" aria-label="Mã QR ghép nối"></div>
         <div class="qr-caption">Quét để ghép nối</div>
         <button id="btnShowCode" class="btn btn-secondary w-full">Hiển thị mã 6 số</button>
         <div id="pairCodeWrap" class="paircode hidden" aria-live="polite">
@@ -102,13 +100,6 @@
 
         <div class="settings-grid">
           <div class="col">
-            <div class="setting-group">
-              <h3>Âm thanh</h3>
-              <label class="setting-item">
-                <span>Kích hoạt đầu vào âm thanh</span>
-                <input id="audioInput" type="checkbox" class="switch">
-              </label>
-            </div>
 
             <div class="setting-group">
               <h3>Thông báo</h3>
@@ -150,6 +141,21 @@
 
   <footer class="app-footer">
   </footer>
+  </div>
+
+  <!-- Countdown Modal -->
+  <div id="countdownModal" class="countdown-modal hidden">
+    <div class="countdown-content">
+      <div class="countdown-circle">
+        <div class="countdown-number" id="countdownNumber">3</div>
+        <svg class="countdown-ring" viewBox="0 0 100 100">
+          <circle class="countdown-ring-bg" cx="50" cy="50" r="45"></circle>
+          <circle class="countdown-ring-progress" cx="50" cy="50" r="45" id="countdownRing"></circle>
+        </svg>
+      </div>
+      <div class="countdown-text">Chuẩn bị streaming...</div>
+      <div class="countdown-subtext">Đang tối ưu kết nối</div>
+    </div>
   </div>
 
   <!-- Dùng bản chính thức từ CDN (tạm thời) để đảm bảo ổn định; sẽ thay bằng bản nội bộ đầy đủ sau -->

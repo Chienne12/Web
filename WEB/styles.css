@@ -52,8 +52,33 @@ body::after{content:"";position:fixed;inset:0;background:radial-gradient(120% 12
 .menu .item[data-icon="settings"]{--icon:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23000' d='M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm8.5 4 2-1-1-3-2 .5a7.9 7.9 0 0 0-1.7-1l.2-2.1-3-1-1 1.8a7.9 7.9 0 0 0-2-.2L10.3 2h-3l.2 2.1a7.9 7.9 0 0 0-1.7 1L3 4.5l-1 3 2 1a8 8 0 0 0 0 2l-2 1 1 3 2-.5c.5.4 1.1.8 1.7 1L7.3 20l3 1 1-1.8c.7.1 1.3.1 2 0L14.7 21l3-1-.2-2.1c.6-.3 1.2-.6 1.7-1l2 .5 1-3-2-1c.1-.7.1-1.3 0-2Z'/></svg>")}
 .qr-card{position:relative;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:linear-gradient(180deg, rgba(10,18,30,.92) 0%, rgba(22,34,50,.92) 100%);backdrop-filter:blur(8px);box-shadow:0 12px 36px rgba(0,0,0,.45)}
 .qr-card::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(100% 120% at 50% 30%, rgba(255,255,255,.06), rgba(255,255,255,0) 60%);pointer-events:none}
-.qr-box{display:flex;justify-content:center;align-items:center;padding:12px;margin-bottom:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:12px}
 .qr-img{width:160px;height:160px;border-radius:12px;background:repeating-linear-gradient(45deg,rgba(255,255,255,.08) 0 10px,rgba(255,255,255,.05) 10px 20px);object-fit:cover}
+
+/* QR Container - Tối ưu cho QR code */
+#qrContainer {
+  width: 200px !important;
+  height: 200px !important;
+  min-width: 200px;
+  min-height: 200px;
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin: 0 auto 12px auto;
+}
+
+/* Canvas QR code bên trong */
+#qrContainer canvas {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  border-radius: 8px;
+}
 .w-full{width:100%}
 
 .paircode{display:flex;align-items:center;gap:10px;margin-top:16px;padding:10px;border:1px dashed var(--border);border-radius:10px;background:rgb(253, 253, 253)}
@@ -161,5 +186,100 @@ body::after{content:"";position:fixed;inset:0;background:radial-gradient(120% 12
 @media (max-width: 768px){
   .player{width:95%;max-width:400px;aspect-ratio:9/16;}
   .player video{object-fit:contain;}
+}
+
+/* Countdown Modal Styles */
+.countdown-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.countdown-modal:not(.hidden) {
+  opacity: 1;
+  visibility: visible;
+}
+
+.countdown-content {
+  text-align: center;
+  color: white;
+}
+
+.countdown-circle {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 24px;
+}
+
+.countdown-number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 48px;
+  font-weight: 700;
+  color: #60A5FA;
+  text-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+  z-index: 2;
+}
+
+.countdown-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.countdown-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 4;
+}
+
+.countdown-ring-progress {
+  fill: none;
+  stroke: #60A5FA;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  transition: stroke-dashoffset 1s linear;
+  filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.6));
+}
+
+.countdown-text {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #FFFFFF;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.countdown-subtext {
+  font-size: 16px;
+  color: #D1D5DB;
+  opacity: 0.8;
+}
+
+/* Animation for countdown number */
+@keyframes countdownPulse {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.countdown-number.animating {
+  animation: countdownPulse 0.5s ease;
 }
 

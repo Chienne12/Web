@@ -56,16 +56,21 @@ async function ensurePeer(){
   peerConnection = new RTCPeerConnection({
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: 'turn:relay1.expressturn.com:3480',
+        username: '000000002074144683',
+        credential: 'Zggq3UmEXpd1HfNZrAodzKKzZf8='
+      }
     ]
   });
-  // Nhận video/audio (recvonly)
-  try {
-    if (peerConnection.addTransceiver){
-      peerConnection.addTransceiver('video', { direction: 'recvonly' });
-      peerConnection.addTransceiver('audio', { direction: 'recvonly' });
-    }
-  } catch {}
+    // Chỉ nhận video (audio đã tắt)
+    try {
+      if (peerConnection.addTransceiver){
+        peerConnection.addTransceiver('video', { direction: 'recvonly' });
+        // peerConnection.addTransceiver('audio', { direction: 'recvonly' }); // Đã tắt audio
+      }
+    } catch {}
 
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
@@ -73,11 +78,17 @@ async function ensurePeer(){
     }
   };
   peerConnection.ontrack = (event) => {
-    console.log('🎬 ontrack fired! Stream:', event.streams[0]);
-    console.log('📊 Stream tracks:', event.streams[0].getTracks().map(t => `${t.kind}: ${t.enabled}`));
+    // Hợp nhất vào remoteStream chung để không mất audio khi track đến lệch nhau
+    if (!window.remoteStream) window.remoteStream = new MediaStream();
+    window.remoteStream.addTrack(event.track);
+    const stream = window.remoteStream;
+    console.log('🎬 ontrack:', event.track.kind, 'enabled=', event.track.enabled);
+    console.log('📊 remoteStream tracks:', stream.getTracks().map(t => `${t.kind}:${t.enabled}`));
+    const audioTracks = stream.getAudioTracks();
+    console.log('🔎 audioTracks:', audioTracks.map(t => ({ id: t.id, enabled: t.enabled, muted: t.muted })));
     
     // Kiểm tra video tracks chi tiết
-    const videoTracks = event.streams[0].getVideoTracks();
+    const videoTracks = stream.getVideoTracks();
     console.log('🎥 Video tracks count:', videoTracks.length);
     
     if (videoTracks.length === 0) {
@@ -94,14 +105,10 @@ async function ensurePeer(){
     
     const video = document.querySelector('.player video') || createVideoElement();
     
-    // Dừng video hiện tại trước khi gán stream mới
-    if (video.srcObject) {
-      video.pause();
-      video.srcObject = null;
-    }
-    
-    // Gán stream mới và play
-    video.srcObject = event.streams[0];
+    // Gán remoteStream và play
+    if (video.srcObject !== stream) video.srcObject = stream;
+
+    // Video-only streaming - no audio processing
     
     // Đợi video có metadata (dimensions)
     video.addEventListener('loadedmetadata', () => {
@@ -151,6 +158,11 @@ async function handleSignal(msg){
   } else if (msg.type === 'peer-joined') {
     console.log('📱 Android joined room:', msg.roomCode);
     updateConnectionUI('connected');
+  } else if (msg.type === 'countdown-start') {
+    console.log('🚀 Nhận countdown signal từ Android - chuẩn bị WebRTC trước');
+    console.log('📱 Message details:', msg);
+    // Chuẩn bị WebRTC trước, sau đó mới countdown
+    prepareWebRTCThenCountdown();
   } else if (msg.type === 'error') {
     console.error('❌ Server error:', msg.message);
     updateConnectionUI('disconnected');
@@ -299,11 +311,16 @@ async function startConnection() {
   try {
     updateConnectionUI('connecting');
     
-    // Tạo peer connection
+    // Tạo peer connection với TURN server
     peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        {
+          urls: 'turn:relay1.expressturn.com:3480',
+          username: '000000002074144683',
+          credential: 'Zggq3UmEXpd1HfNZrAodzKKzZf8='
+        }
       ]
     });
     
@@ -313,7 +330,7 @@ async function startConnection() {
         console.log('ICE candidate:', event.candidate);
         // Gửi candidate đến Android app qua signaling
         sendSignalingMessage({
-          type: 'ice-candidate',
+          type: 'ice',
           candidate: event.candidate
         });
       }
@@ -565,19 +582,6 @@ function initSettings() {
   // Load saved settings
   loadSettings();
   
-  // Audio input toggle
-  const audioInputToggle = document.getElementById('audioInput');
-  if (audioInputToggle) {
-    audioInputToggle.addEventListener('change', (e) => {
-      const enabled = e.target.checked;
-      console.log('Audio input:', enabled ? 'BẬT' : 'TẮT');
-      // Gửi command tới Android
-      sendCommand('audio-input-toggle', enabled);
-      
-      // Lưu vào localStorage
-      localStorage.setItem('audioInputEnabled', enabled);
-    });
-  }
   
   // Notification toggle
   const notificationToggle = document.getElementById('showNotify');
@@ -596,34 +600,8 @@ function initSettings() {
     });
   }
   
-  // Volume controls
-  const micVolSlider = document.getElementById('micVol');
-  const masterVolSlider = document.getElementById('masterVol');
+  // Brightness control
   const brightnessSlider = document.getElementById('brightness');
-  
-  if (micVolSlider) {
-    micVolSlider.addEventListener('input', (e) => {
-      const volume = parseInt(e.target.value);
-      console.log('Mic volume:', volume);
-      // Gửi command tới Android
-      sendCommand('mic-volume-change', volume);
-      
-      // Lưu vào localStorage
-      localStorage.setItem('micVolume', volume);
-    });
-  }
-  
-  if (masterVolSlider) {
-    masterVolSlider.addEventListener('input', (e) => {
-      const volume = parseInt(e.target.value);
-      console.log('Master volume:', volume);
-      // Gửi command tới Android
-      sendCommand('master-volume-change', volume);
-      
-      // Lưu vào localStorage
-      localStorage.setItem('masterVolume', volume);
-    });
-  }
   
   if (brightnessSlider) {
     brightnessSlider.addEventListener('input', (e) => {
@@ -640,13 +618,6 @@ function initSettings() {
 
 // Load settings từ localStorage
 function loadSettings() {
-  // Audio input
-  const audioInputEnabled = localStorage.getItem('audioInputEnabled') === 'true';
-  const audioInputToggle = document.getElementById('audioInput');
-  if (audioInputToggle) {
-    audioInputToggle.checked = audioInputEnabled;
-  }
-  
   // Notifications
   const notificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
   const notificationToggle = document.getElementById('showNotify');
@@ -654,24 +625,9 @@ function loadSettings() {
     notificationToggle.checked = notificationsEnabled;
   }
   
-  // Volumes
-  const micVolume = parseInt(localStorage.getItem('micVolume')) || 75;
-  const masterVolume = parseInt(localStorage.getItem('masterVolume')) || 50;
+  // Brightness
   const brightness = parseInt(localStorage.getItem('brightness')) || 80;
-  
-  const micVolSlider = document.getElementById('micVol');
-  const masterVolSlider = document.getElementById('masterVol');
   const brightnessSlider = document.getElementById('brightness');
-  
-  if (micVolSlider) {
-    micVolSlider.value = micVolume;
-    document.getElementById('micVolVal').textContent = micVolume;
-  }
-  
-  if (masterVolSlider) {
-    masterVolSlider.value = masterVolume;
-    document.getElementById('masterVolVal').textContent = masterVolume;
-  }
   
   if (brightnessSlider) {
     brightnessSlider.value = brightness;
@@ -808,19 +764,39 @@ function updateQRCode(data){
   container.innerHTML = '';
 
   try {
-    // Dùng QRCode.js (davidshimjs) đúng API
+    // Dùng QRCode.js với cấu hình tối ưu cho hiển thị
     /* global QRCode */
     new QRCode(container, {
       text: data,
-      width: 160,
-      height: 160,
-      correctLevel: QRCode.CorrectLevel.M
+      width: 180,
+      height: 180,
+      correctLevel: QRCode.CorrectLevel.H, // High error correction
+      colorDark: '#000000',
+      colorLight: '#ffffff'
     });
+    
+    console.log('QR Code generated successfully:', data);
+    console.log('QR Code length:', data.length);
+    
+    // Đảm bảo canvas hiển thị đúng trong container
+    setTimeout(() => {
+      const canvas = container.querySelector('canvas');
+      if (canvas) {
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '100%';
+        canvas.style.borderRadius = '8px';
+        console.log('Canvas styled for container');
+      }
+    }, 100);
+    
   } catch (err) {
     console.error('QR render failed:', err);
     const note = document.createElement('div');
     note.style.fontSize = '12px';
     note.style.opacity = '0.8';
+    note.style.padding = '10px';
+    note.style.textAlign = 'center';
+    note.style.color = '#666';
     note.textContent = 'Không thể vẽ QR. Hiển thị mã 6 số để ghép.';
     container.appendChild(note);
   }
@@ -832,6 +808,9 @@ function initPairing(){
   roomData.roomCode = (roomData.roomCode || '').toString().toUpperCase();
   window.__ROOM_DATA__ = roomData; // lưu tạm để dùng chỗ khác nếu cần
   
+  // Debug: Log QR data để kiểm tra
+  console.log('Room data:', roomData);
+  
   // Gửi mã phòng lên server (nếu WS đã mở). Nếu chưa mở, onopen sẽ gửi lại.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ 
@@ -842,13 +821,42 @@ function initPairing(){
     }));
   }
   
-  // Cập nhật QR code với thông tin phòng
-  updateQRCode(JSON.stringify({ 
-    type: 'room', 
-    roomCode: roomData.roomCode, 
-    host: SERVER_HOST,
+  // Cập nhật QR code với thông tin phòng (format chuẩn cho app Android)
+  const qrData = {
+    type: 'room',
+    roomCode: roomData.roomCode,
+    host: `wss://${SERVER_HOST}`,
     expiresAt: roomData.expiresAt
-  }));
+  };
+  
+  // Đảm bảo expiresAt là số nguyên
+  if (typeof qrData.expiresAt !== 'number') {
+    qrData.expiresAt = parseInt(qrData.expiresAt);
+  }
+  
+  // Debug: Log QR data để kiểm tra
+  console.log('QR Data for Android:', qrData);
+  console.log('QR JSON String:', JSON.stringify(qrData));
+  
+  // Validation: Kiểm tra format trước khi tạo QR
+  if (!qrData.type || !qrData.roomCode || !qrData.host) {
+    console.error('Invalid QR data:', qrData);
+    return;
+  }
+  
+  // Kiểm tra host validation (giống logic Android)
+  const host = qrData.host.toLowerCase();
+  const isValidHost = host.includes('linkcast') || host.includes('ngrok') || host.includes('localhost');
+  console.log('Host validation:', { host, isValidHost });
+  
+  if (!isValidHost) {
+    console.warn('Host không hợp lệ cho Android app:', host);
+  }
+  
+  // Tạo QR với format chuẩn
+  const qrString = JSON.stringify(qrData);
+  console.log('Final QR String:', qrString);
+  updateQRCode(qrString);
 
   const btnShow = document.getElementById('btnShowCode');
   const wrap = document.getElementById('pairCodeWrap');
@@ -1028,4 +1036,172 @@ window.addEventListener('DOMContentLoaded', ()=>{
     });
   }
 });
+
+// Tạo video element nếu chưa có
+function createVideoElement() {
+  const player = document.querySelector('.player');
+  if (!player) return null;
+  
+  const video = document.createElement('video');
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = true;
+  video.style.width = '100%';
+  video.style.height = '100%';
+  video.style.objectFit = 'cover';
+  
+  player.appendChild(video);
+  return video;
+}
+
+// Chuẩn bị WebRTC trước, sau đó mới countdown
+function prepareWebRTCThenCountdown() {
+  console.log('🔧 Bắt đầu chuẩn bị WebRTC...');
+  
+  // Tạo video element sẵn
+  let video = document.querySelector('.player video');
+  if (!video) {
+    video = createVideoElement();
+  }
+  
+  // Hiển thị loading state
+  if (video) {
+    video.style.opacity = '0.1';
+    video.style.filter = 'blur(10px)';
+    video.style.background = 'linear-gradient(45deg, #1a1a1a, #2a2a2a)';
+    video.style.display = 'block';
+  }
+  
+  // Đợi WebRTC sẵn sàng (có offer từ Android) - kiểm tra nhanh hơn
+  let checkCount = 0;
+  const maxChecks = 50; // Tối đa 5 giây (50 * 100ms)
+  
+  const checkWebRTCReady = () => {
+    checkCount++;
+    
+    if (peerConnection && peerConnection.connectionState === 'connected') {
+      console.log('✅ WebRTC đã sẵn sàng - bắt đầu countdown');
+      startCountdown();
+    } else if (peerConnection && peerConnection.connectionState === 'connecting') {
+      console.log('⏳ WebRTC đang kết nối - đợi thêm...');
+      if (checkCount < maxChecks) {
+        setTimeout(checkWebRTCReady, 100); // Kiểm tra nhanh hơn
+      } else {
+        console.log('⚠️ WebRTC timeout - bắt đầu countdown anyway');
+        startCountdown();
+      }
+    } else {
+      console.log('⏳ Đợi WebRTC offer từ Android...');
+      if (checkCount < maxChecks) {
+        setTimeout(checkWebRTCReady, 100); // Kiểm tra nhanh hơn
+      } else {
+        console.log('⚠️ WebRTC timeout - bắt đầu countdown anyway');
+        startCountdown();
+      }
+    }
+  };
+  
+  // Bắt đầu kiểm tra
+  checkWebRTCReady();
+}
+
+// Countdown 3 giây - video bắt đầu hiển thị ngay từ đầu
+function startCountdown() {
+  const modal = document.getElementById('countdownModal');
+  const numberEl = document.getElementById('countdownNumber');
+  const ringEl = document.getElementById('countdownRing');
+  
+  if (!modal || !numberEl || !ringEl) {
+    console.error('Countdown elements not found');
+    updateConnectionUI('connected');
+    return;
+  }
+  
+  // Hiển thị modal và chuẩn bị video
+  modal.classList.remove('hidden');
+  
+  // Tạo video element nếu chưa có
+  let video = document.querySelector('.player video');
+  if (!video) {
+    video = createVideoElement();
+  }
+  
+  // Video đã có data từ WebRTC - bắt đầu hiển thị
+  if (video) {
+    video.style.opacity = '0.3';
+    video.style.filter = 'blur(5px)';
+    video.style.transition = 'opacity 0.3s ease, filter 0.3s ease';
+    video.style.background = 'none'; // Bỏ background vì đã có video data
+    video.style.display = 'block';
+    console.log('🎬 Video bắt đầu hiển thị với data từ WebRTC');
+  }
+  
+  let count = 3;
+  const totalTime = 3000; // 3 giây
+  const interval = 100; // Cập nhật mỗi 100ms
+  const steps = totalTime / interval;
+  let currentStep = 0;
+  
+  // Cập nhật số và vòng tròn
+  function updateCountdown() {
+    const progress = currentStep / steps;
+    const remaining = Math.ceil(count);
+    
+    // Cập nhật số
+    numberEl.textContent = remaining;
+    numberEl.classList.add('animating');
+    setTimeout(() => numberEl.classList.remove('animating'), 500);
+    
+    // Cập nhật vòng tròn (từ 283 xuống 0)
+    const offset = 283 - (progress * 283);
+    ringEl.style.strokeDashoffset = offset;
+    
+    // Hiệu ứng video dần nét theo countdown
+    const video = document.querySelector('.player video');
+    if (video) {
+      // Tăng opacity và giảm blur theo thời gian
+      const opacity = Math.min(0.3 + (progress * 0.7), 1); // 0.3 -> 1.0
+      const blur = Math.max(5 - (progress * 5), 0); // 5px -> 0px
+      
+      video.style.opacity = opacity;
+      video.style.filter = `blur(${blur}px)`;
+      video.style.transition = 'opacity 0.2s ease, filter 0.2s ease';
+      
+      // Đảm bảo video nét hoàn toàn khi đếm đến 1
+      if (remaining === 1) {
+        video.style.opacity = '1';
+        video.style.filter = 'none';
+        video.style.background = 'none';
+        console.log('🎯 Video is now CRISP at count 1!');
+      }
+    }
+    
+    currentStep++;
+    
+    if (remaining > 1) {
+      count -= (1 / steps);
+      setTimeout(updateCountdown, interval);
+    } else {
+      // Kết thúc countdown - video đã nét hoàn toàn
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        
+        // Đảm bảo video hiển thị hoàn hảo
+        const video = document.querySelector('.player video');
+        if (video) {
+          video.style.opacity = '1';
+          video.style.filter = 'none';
+          // Video-only streaming - no audio
+          console.log('✅ Video-only streaming active');
+        }
+        
+        console.log('✅ Countdown completed - video is now crisp and smooth');
+      }, interval);
+    }
+  }
+  
+  // Bắt đầu countdown
+  updateCountdown();
+}
+
 
